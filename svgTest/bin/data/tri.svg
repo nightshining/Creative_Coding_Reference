@@ -1,0 +1,14 @@
+<svg id="Layer_1" data-name="Layer 1" xmlns="http://www.w3.org/2000/svg" width="412.71" height="368.64" viewBox="0 0 412.71 368.64">
+  <defs>
+    <style>
+      .cls-1 {
+        fill: #ff3f75;
+        stroke: #000;
+        stroke-miterlimit: 10;
+      }
+    </style>
+  </defs>
+  <title>tri</title>
+  <path class="cls-1" d="M747,628.5" transform="translate(-710.15 -260.36)"/>
+  <polygon class="cls-1" points="411.85 368.14 0.85 368.14 206.35 1.02 411.85 368.14"/>
+</svg>
