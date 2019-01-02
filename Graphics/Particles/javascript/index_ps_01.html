@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <meta charset=utf-8>
+        <title>TITLE HERE</title>
+        <style>
+            body { 
+                margin: 0; 
+                cursor: none;
+            }
+            canvas { 
+                position: absolute;
+                left: 0px;
+                top: 0px;
+                width: 100%; 
+                height: 100% 
+            }
+            .INFO_DOM_PLACE_HOLDER{
+                    position: absolute;
+                    border-radius: 100px;
+                    font-size: 22px;
+                    text-align: center;
+                    line-height: 200px;
+                    background-color: #FFF;
+                    height: 200px;
+                    width: 200px;
+                    z-index: 999;
+            }
+        </style>
+    </head>
+    <body>
+        <div id="INFO_DOM_PLACE_HOLDER">DOM</div>
+
+        <!-- example of usage -->
+        <script src="lib/three.min.js"></script> 
+
+        <!-- shaders -->
+        <script type="x-shader/x-vertex" id="shdr_master_vert">
+            uniform vec2 resolution;
+            uniform float t;
+            uniform sampler2D tex_vel;
+            
+            void main() {
+                vec4 pos = projectionMatrix * modelViewMatrix * vec4( position * 1.15, 1. );
+                vec3 vel = texture2D(tex_vel, uv.xy).rgb;
+                pos.xy += vel.xy*.1;
+
+                gl_PointSize = pow((vel.x + vel.y + vel.z), 1.3)  * 10.;
+                gl_Position = pos;
+            }
+        </script>
+        <script type="x-shader/x-fragment" id="shdr_master_frag">
+            uniform vec2 resolution;
+            uniform sampler2D tex_vel;
+            uniform sampler2D tex_sprite;
+            uniform vec2 mouse;
+            uniform vec2 mouse_delta;
+            void main() {
+                vec2 uv = gl_FragCoord.xy / resolution * .5;
+                vec3 vel = texture2D(tex_vel, uv).rgb;
+                vec3 c = vec3(length(vel)*2. );
+
+                c = clamp(c, vec3(0.), vec3(.5));
+
+                gl_FragColor = vec4(c, 1.) * texture2D(tex_sprite, gl_PointCoord) ;
+            }
+        </script>
+        <script type="x-shader/x-fragment" id="shdr_vel_frag">
+            uniform sampler2D tex_p_vel;
+            uniform sampler2D tex_noise;
+            uniform vec2 resolution;
+            uniform vec2 mouse;
+            uniform vec2 mouse_delta;
+            uniform float t;
+
+            vec4 advect(sampler2D _tex, vec2 _uv, vec2 _dir, float _texel){
+                //https://www.shadertoy.com/view/MsyXRW
+                const float _G0 = .25;
+                const float _G1 = .125;
+                const float _G2 = .0625;
+                const float ADVECT_DIST = 2.;
+
+                vec2 uv = _uv - _dir * ADVECT_DIST * _texel;
+
+                vec2 n  = vec2( 0., 1.);
+                vec2 ne = vec2( 1., 1.);
+                vec2 e  = vec2( 1., 0.);
+                vec2 se = vec2( 1.,-1.);
+                vec2 s  = vec2( 0.,-1.);
+                vec2 sw = vec2(-1.,-1.);
+                vec2 w  = vec2(-1., 0.);
+                vec2 nw = vec2(-1., 1.);
+
+                vec4 c =    texture2D(_tex, fract(uv));
+                vec4 c_n =  texture2D(_tex, fract(uv+_texel*n));
+                vec4 c_e =  texture2D(_tex, fract(uv+_texel*e));
+                vec4 c_s =  texture2D(_tex, fract(uv+_texel*s));
+                vec4 c_w =  texture2D(_tex, fract(uv+_texel*w));
+                vec4 c_nw = texture2D(_tex, fract(uv+_texel*nw));
+                vec4 c_sw = texture2D(_tex, fract(uv+_texel*sw));
+                vec4 c_ne = texture2D(_tex, fract(uv+_texel*ne));
+                vec4 c_se = texture2D(_tex, fract(uv+_texel*se));
+
+                return _G0*c+_G1*(c_n+c_e+c_w+c_s)+_G2*(c_nw+c_sw+c_ne+c_se);
+            }
+            float circle(vec2 _st, vec2 _center, float _radius){
+                vec2 dist = _st-_center;
+                return 1.-smoothstep(_radius-(_radius*0.01),
+                                     _radius+(_radius*0.01),
+                                     dot(dist,dist)*4.0);
+            }
+
+            void main(){
+                vec2 uv = gl_FragCoord.xy / resolution;
+
+                vec2 dir = mouse_delta * 5.;
+                float dist = pow( distance(uv, mouse), 2.)*20. ;
+                float c = circle(uv, mouse, .01);
+
+                vec2 swir_dir = normalize(uv - mouse);
+                swir_dir.x *= resolution.y/resolution.x;
+                float swir_dist = .3 - distance(uv, mouse);
+                swir_dist = swir_dist < 0. ? 0. : swir_dist;
+                vec2 swir_f = swir_dir * swir_dist * 70.;
+
+                 
+                 float noise_intensity = 1.;
+                 vec3 noise = (texture2D(tex_noise, fract(uv + vec2(t ,  t * 1.)) ).rgb - .5) * 2. *  noise_intensity; 
+                 vec3 p_vel = advect(tex_p_vel, uv, noise.rg + swir_f, 1./512.).rgb + c * vec3(dir, 0) * dist;;
+                 
+                 vec3 vel = p_vel;
+                 vel *= .96;
+
+                 if(length(vel) < .015)
+                    vel = noise;
+                 
+                 gl_FragColor = vec4(vel,1);
+            }
+        </script>
+
+        <script type="x-shader/x-fragment" id="shdr_feedback_frag">
+            uniform sampler2D tex_vel;
+            uniform sampler2D tex_p_feedback;
+            uniform sampler2D tex_noise;
+            uniform vec2 resolution;
+            uniform vec2 mouse;
+            uniform vec2 mouse_delta;
+            uniform float t;
+
+            vec4 advect(sampler2D _tex, vec2 _uv, vec2 _dir, float _texel){
+                //https://www.shadertoy.com/view/MsyXRW
+                const float _G0 = .25;
+                const float _G1 = .125;
+                const float _G2 = .0625;
+                const float ADVECT_DIST = 2.;
+
+                vec2 uv = _uv - _dir * ADVECT_DIST * _texel;
+
+                vec2 n  = vec2( 0., 1.);
+                vec2 ne = vec2( 1., 1.);
+                vec2 e  = vec2( 1., 0.);
+                vec2 se = vec2( 1.,-1.);
+                vec2 s  = vec2( 0.,-1.);
+                vec2 sw = vec2(-1.,-1.);
+                vec2 w  = vec2(-1., 0.);
+                vec2 nw = vec2(-1., 1.);
+
+                vec4 c =    texture2D(_tex, fract(uv));
+                vec4 c_n =  texture2D(_tex, fract(uv+_texel*n));
+                vec4 c_e =  texture2D(_tex, fract(uv+_texel*e));
+                vec4 c_s =  texture2D(_tex, fract(uv+_texel*s));
+                vec4 c_w =  texture2D(_tex, fract(uv+_texel*w));
+                vec4 c_nw = texture2D(_tex, fract(uv+_texel*nw));
+                vec4 c_sw = texture2D(_tex, fract(uv+_texel*sw));
+                vec4 c_ne = texture2D(_tex, fract(uv+_texel*ne));
+                vec4 c_se = texture2D(_tex, fract(uv+_texel*se));
+
+                return _G0*c+_G1*(c_n+c_e+c_w+c_s)+_G2*(c_nw+c_sw+c_ne+c_se);
+            }
+
+            float circle(vec2 _st, vec2 _center, float _radius){
+                vec2 dist = _st-_center;
+                return 1.-smoothstep(_radius-(_radius*0.01),
+                                     _radius+(_radius*0.01),
+                                     dot(dist,dist)*4.0);
+            }
+
+            void main(){
+                vec2 uv = gl_FragCoord.xy / resolution;
+                 
+                 vec3 vel = texture2D(tex_vel, uv).rgb;
+                 vec2 noise = (texture2D(tex_noise, fract(uv - t * 2.)).rg - .5) * 2.;
+                 vec3 p_feedback = advect(tex_p_feedback, uv, noise, 1./512.).rgb;
+                 
+                 vec3 feedback = p_feedback + vel;
+                 feedback *= .96;
+                 
+                 gl_FragColor = vec4(feedback,1);
+            }
+        </script>
+
+        <script src="js/ps_01.js"></script>
+
+        <!-- main code -->
+        <script>
+            var m_ps = new ps_01();
+            m_ps.append_renderer_to_dom( document.body );
+            m_ps.render();
+
+            m_ps.register_dom_a(document.getElementById("INFO_DOM_PLACE_HOLDER"));
+
+        </script>
+    </body>
+</html>

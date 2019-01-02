@@ -1,0 +1,304 @@
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <meta charset=utf-8>
+        <title>TITLE HERE</title>
+        <style>
+        body { 
+            margin: 0; 
+            cursor: none;
+        }
+        canvas { 
+            position: absolute;
+            left: 0px;
+            top: 0px;
+            width: 100%; 
+            height: 100% 
+        }
+        #INFO_DOM_PLACE_HOLDER{
+            /*position: absolute;*/
+            border-radius: 100px;
+            font-size: 22px;
+            text-align: center;
+            line-height: 200px;
+            background-color: #FFF;
+            height: 200px;
+            width: 200px;
+            z-index: 999;
+        }
+    </style>
+</head>
+<body>
+    <div id="INFO_DOM_PLACE_HOLDER">DOM</div>
+
+    <!-- example of usage -->
+    <script src="lib/three.min.js"></script> 
+
+    <!-- shaders -->
+    <script type="x-shader/x-vertex" id="shdr_vert">
+        void main() {
+            gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.);
+            // gl_Position = vec4(position, 1.);
+        }
+    </script>
+    <script type="x-shader/x-vertex" id="shdr_master_vert">
+        uniform sampler2D tex_pos;
+        uniform sampler2D tex_vel;
+        uniform vec2 mouse;
+        uniform bool is_init;
+        uniform float t;
+
+        varying float v_size;
+        varying float v_is_hit;
+
+        void main() {
+            float aspect = screen_res.x / screen_res.y;
+            vec4 pos_data =  vec4(texture2D(tex_pos, uv).rgb, 1.);
+            vec4 vel =  texture2D(tex_vel, uv);
+            float size = pos_data.z * .5;
+
+            gl_PointSize = size + vel.w*3.;
+
+            vec4 pos = vec4(pos_data.xy, 0., 1.);
+
+            gl_Position = projectionMatrix * modelViewMatrix * pos;
+
+            v_size = size;
+            v_is_hit = vel.w;
+        }
+    </script>
+    <script type="x-shader/x-fragment" id="shdr_master_frag">
+        uniform sampler2D tex_sprite;
+
+        varying float v_size;
+        varying vec2 v_pos;
+        varying float v_is_hit;
+
+        void main() {
+            float size = v_size;
+
+            float hit = v_is_hit;
+            vec3 c = vec3(1.) * hit;
+            c = clamp(c, 0., .8);
+
+            gl_FragColor = vec4(c, 1.) * texture2D(tex_sprite, gl_PointCoord);
+        }
+    </script>
+    <script type="x-shader/x-fragment" id="shdr_standard_frag">
+
+        varying float v_size;
+        varying vec2 v_pos;
+        varying float v_is_hit;
+
+        void main() {
+            vec2 uv = gl_FragCoord.xy / screen_res;
+            float size = v_size;
+
+            float hit = pow(v_is_hit, 2.);
+            vec3 c = vec3(.002) * hit;
+            c = clamp(c, 0., .8);
+
+            gl_FragColor = vec4(c, 1.);
+        }
+    </script>
+    <!-- <script type="x-shader/x-fragment" id="shdr_post_processing_frag">
+        uniform sampler2D tex_src;
+        uniform sampler2D tex_master;
+        uniform bool is_init;
+        uniform float t;
+
+        void main() {
+            vec2 uv = gl_FragCoord.xy / screen_res;
+            vec3 src = texture2D(tex_src, uv).rgb;
+            vec3 master = texture2D(tex_master, uv).rgb;
+
+            vec3 c = (src * .5) + master;
+            c *= .96;
+
+            gl_FragColor = vec4(c, 1.);
+        }
+    </script> -->
+    <script type="x-shader/x-fragment" id="shdr_vel_frag">
+        uniform sampler2D tex_pos;
+        uniform sampler2D tex_p_vel;
+        uniform vec2 mouse;
+        uniform bool is_init;
+        uniform float t;
+
+        const float x = res.x;
+        const float y = res.y;
+
+        float hash( float n ){return fract(sin(n*2.*3.1459)*43758.5453);}
+        float cal_noise( vec2 x ){
+            vec2 p = floor(x);
+            vec2 f = fract(x);
+            f = f*f*(3.0-2.0*f);
+            float n = p.x + p.y*57.0;
+            return mix(mix( hash(n+  0.0), hash(n+  1.0),f.x),mix( hash(n+ 57.0), hash(n+ 58.0),f.x),f.y);
+        }
+
+        void main() {
+            vec2 uv = gl_FragCoord.xy / res;
+            float aspect = screen_res.x / screen_res.y;
+
+            vec3 pos = texture2D(tex_pos, uv).rgb;
+            float r = pos.z;
+            vec4 p_vel = texture2D(tex_p_vel, uv);
+            vec2 vel = p_vel.xy;
+
+            if(!is_init){
+                pos = vec3(0.);
+                p_vel = vec4(0.);
+
+                float noise = cal_noise(uv);
+                vel = -(uv-.5)*noise;
+            }
+
+            vec2 col = vec2(0.);
+            float is_hit = p_vel.w;
+
+            for(float _x = 0.0; _x < x; _x++){
+                for(float _y = 0.0; _y < y; _y++){
+                    
+                    vec2 _uv = vec2(_x + .5, _y + .5) / vec2(x, y); 
+
+                    if(_uv.x != uv.x && _uv.y != uv.y){
+                        vec3 _p2_data = texture2D(tex_pos, _uv).xyz;
+                        vec2 _p2 = _p2_data.xy;
+                        float _p2s = _p2_data.z;
+
+                        if(_p2s < .2){
+                            continue;
+                        }
+
+
+                        float _dist = distance(pos.xy, _p2);
+                        float _r = .012;
+
+                        // col 
+                        if(_dist > _r){
+                            continue;
+                        } else {
+                            vec2 _dir = normalize(pos.xy - _p2);
+
+                            if(is_init)
+                                vel *= .96;
+
+                            _dist = _dist < .01 ? .01 : _dist;
+                            col = (_dir * .000005/(_dist*_dist));///r;
+
+                            is_hit += .2;
+
+                            break;
+                        } 
+                    } else {
+                        continue;
+                    }
+                }
+            }
+
+            // obstacle 
+            vec2 o_mouse = mouse-.5;
+            o_mouse.x *= aspect;
+            vec2 o_pos = pos.xy;
+            o_pos.x *= aspect;
+            float o_dist = distance(o_mouse, o_pos);
+            vec2 o_dir = normalize(o_pos - o_mouse);
+            float o_max_dist = .05;
+            vec2 o_f = vec2(0.);
+            if(o_dist < o_max_dist){
+                o_f = o_dir * (o_max_dist - o_dist) * 50.;
+                is_hit += .1 * length(o_f);
+            }
+            // att
+            vec2 a_f = -o_dir * o_dist * .002;
+            
+            vel += col + o_f + a_f;
+            vel *= .99;
+            is_hit *= .96;
+
+            if(pos.x <= -.5 || pos.x >= .5){
+                vel.x *= -3.;
+                is_hit += .5;
+            }
+
+            if(pos.y <= -.5 || pos.y >= .5){
+                vel.y *= -3.;
+                is_hit += .5;
+            }
+
+            vel = clamp(vel, -5., 5.);
+            is_hit = is_hit > 10. ? 10. : is_hit;
+
+            gl_FragColor = vec4(vel, 0., is_hit);
+        }
+    </script>
+    <script type="x-shader/x-fragment" id="shdr_pos_frag">
+        uniform sampler2D tex_vel;
+        uniform sampler2D tex_p_pos;
+        uniform vec2 resolution;
+        uniform vec2 mouse;
+        uniform bool is_init;
+        uniform float t;
+
+        float hash( float n ){return fract(sin(n*2.*3.1459)*43758.5453);}
+
+        void main() {
+            vec2 uv = gl_FragCoord.xy / resolution;
+
+            vec4 vel = texture2D(tex_vel, uv);
+            vec4 p_pos = texture2D(tex_p_pos, uv);
+
+            // pos
+            vec2 pos = p_pos.rg;
+            pos += vel.rg*.01;
+            
+            // pos -= .001;
+            // pos += .5;
+            // pos = fract(pos);
+            // pos -= .5;
+
+            if(!is_init){
+                pos = uv - .5;
+            }
+
+            if(pos.x < -.5)
+                pos.x = -.5;
+            else if(pos.x > .5)
+                pos.x = .5;
+
+            if(pos.y < -.5)
+                pos.y = -.5;
+            else if(pos.y > .5)
+                pos.y = .5;
+
+            if(length(pos) == 0.)
+                pos += .00001;
+
+            // size
+            float size = p_pos.z;
+            if(!is_init){
+                size = hash(uv.x * uv.y);
+                size = size + .01;
+            }
+
+            // queue
+            float queue = p_pos.w;
+
+            gl_FragColor = vec4(pos, size, queue);
+        }
+        </script>
+
+        <script src="js/ps_02.js"></script>
+
+        <!-- main code -->
+        <script>
+            var m_ps = new ps_02();
+            m_ps.append_renderer_to_dom( document.body );
+            m_ps.render();
+
+            m_ps.register_dom_a(document.getElementById("INFO_DOM_PLACE_HOLDER"));
+
+        </script>
+    </body>
+    </html>

@@ -1,0 +1,10 @@
+
+{
+	"person": {
+		"firstname": "joe",
+		"lastname": "smith",
+		"age": 29,
+		"born": 10.45,
+		"dead": false
+	}
+}
