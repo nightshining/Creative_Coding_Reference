@@ -1,6 +1,18 @@
 # Creative Coding Reference
 Collection short snippets of code
 
+### C++ 
+
+* Auto 
+* Iterator
+* Maps
+* Pointer (openframeworks specific)
+* Print Data Types
+* Reverse Array
+* Sum Array
+* State Check
+* Big Sum
+
 ### Control
 
 * Angle
@@ -20,6 +32,11 @@ Collection short snippets of code
 * Particles 
 * Point Along Path
 
+### JSON
+
+* JSON OSC sender
+* JSON test
+
 ### Sensors
 
 * Capacitive Sensor
@@ -36,7 +53,7 @@ Collection short snippets of code
 * Morph 
 * SSAO
 
-### Shell Scripting
+### Shell Scripts
 
 * App Display Logger 
 * Apple Scripts
@@ -45,19 +62,4 @@ Collection short snippets of code
 * Quit App 
 * SSH Power Shell Networking Commands
 
-### C++ 
 
-* Auto 
-* Iterator
-* Maps
-* Pointer (openframeworks specific)
-* Print Data Types
-* Reverse Array
-* Sum Array
-* State Check
-* Big Sum
-
-### JSON
-
-* JSON OSC sender
-* JSON test
