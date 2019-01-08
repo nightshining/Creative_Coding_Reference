@@ -18,6 +18,7 @@ Collection short snippets of code
 * Angle
 * Button
 * Easing
+* Lerp
 * Smoothing
 * Spriral Motion
 * State Checking
